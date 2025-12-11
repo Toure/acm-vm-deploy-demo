@@ -1,0 +1,31 @@
+# The namespace on the Hub where policies are stored
+policy_namespace: "policies"
+
+# The name of the cluster where you want the VM deployed
+# Run 'oc get managedclusters' on the Hub to find this name
+target_cluster_name: "local-cluster"
+
+# The namespace on the TARGET cluster where the VM will live
+target_vm_namespace: "vm-demo-ns"
+#
+
+# --- vCenter Connection Details ---
+vcenter_hostname: "vcenter.corp.local"
+vcenter_username: "administrator@vsphere.local"
+vcenter_password: "YourSecurePassword123!"
+vcenter_validate_certs: no
+
+# --- Target Infrastructure ---
+datacenter_name: "Datacenter-01"
+cluster_name: "Cluster-01"
+datastore_name: "vsanDatastore"
+network_name: "VM Network"
+resource_pool: "Resources" # Default is usually 'Resources' if no custom pool exists
+
+# --- VM Specs ---
+vm_name: "demo-rhel-vm"
+vm_template: "rhel-9-template" # You must have an existing template in vCenter
+vm_folder: "Demo-VMs"
+vm_cpu: 2
+vm_ram_mb: 4096
+vm_disk_gb: 50

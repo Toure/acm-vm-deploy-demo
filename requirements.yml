@@ -1,0 +1,5 @@
+---
+collections:
+  - name: vmware.vmware
+  - name: community.vmware
+    version: 3.3.0

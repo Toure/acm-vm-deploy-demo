@@ -1,0 +1,132 @@
+---
+- name: Deploy Demo VM via ACM Policy
+  hosts: localhost
+  gather_facts: no
+  vars_files:
+    - vars/main.yml
+
+  tasks:
+    - name: Ensure Policy Namespace exists on Hub
+      kubernetes.core.k8s:
+        state: present
+        kind: Namespace
+        name: "{{ policy_namespace }}"
+
+    - name: Create ACM PlacementRule
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: apps.open-cluster-management.io/v1
+          kind: PlacementRule
+          metadata:
+            name: deploy-vm-placement
+            namespace: "{{ policy_namespace }}"
+          spec:
+            clusterConditions:
+              - status: "True"
+                type: ManagedClusterConditionAvailable
+            clusterSelector:
+              matchLabels:
+                name: "{{ target_cluster_name }}"
+
+    - name: Create ACM PlacementBinding
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: policy.open-cluster-management.io/v1
+          kind: PlacementBinding
+          metadata:
+            name: deploy-vm-binding
+            namespace: "{{ policy_namespace }}"
+          placementRef:
+            name: deploy-vm-placement
+            kind: PlacementRule
+            apiGroup: apps.open-cluster-management.io
+          subjects:
+            - name: policy-deploy-demo-vm
+              kind: Policy
+              apiGroup: policy.open-cluster-management.io
+
+    - name: Create ACM Configuration Policy (The VM Definition)
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: policy.open-cluster-management.io/v1
+          kind: Policy
+          metadata:
+            name: policy-deploy-demo-vm
+            namespace: "{{ policy_namespace }}"
+            annotations:
+              policy.open-cluster-management.io/standards: NIST SP 800-53
+              policy.open-cluster-management.io/categories: CM Configuration Management
+              policy.open-cluster-management.io/controls: CM-2 Baseline Configuration
+          spec:
+            remediationAction: enforce # "enforce" creates the object, "inform" just alerts
+            disabled: false
+            policy-templates:
+              - objectDefinition:
+                  apiVersion: policy.open-cluster-management.io/v1
+                  kind: ConfigurationPolicy
+                  metadata:
+                    name: policy-deploy-demo-vm-config
+                  spec:
+                    remediationAction: enforce
+                    severity: low
+                    namespaceSelector:
+                      include: ["default"] # This is where the config policy runs on the managed cluster
+                    object-templates:
+                      # --- TARGET NAMESPACE DEFINITION ---
+                      - complianceType: musthave
+                        objectDefinition:
+                          apiVersion: v1
+                          kind: Namespace
+                          metadata:
+                            name: "{{ target_vm_namespace }}"
+
+                      # --- VIRTUAL MACHINE DEFINITION ---
+                      - complianceType: musthave
+                        objectDefinition:
+                          apiVersion: kubevirt.io/v1
+                          kind: VirtualMachine
+                          metadata:
+                            name: acm-demo-vm
+                            namespace: "{{ target_vm_namespace }}"
+                            labels:
+                              app: acm-demo
+                          spec:
+                            running: true
+                            template:
+                              metadata:
+                                labels:
+                                  kubevirt.io/domain: acm-demo-vm
+                              spec:
+                                domain:
+                                  cpu:
+                                    cores: 1
+                                  devices:
+                                    disks:
+                                      - name: containerdisk
+                                        disk:
+                                          bus: virtio
+                                      - name: cloudinitdisk
+                                        disk:
+                                          bus: virtio
+                                    interfaces:
+                                      - name: default
+                                        masquerade: {}
+                                  resources:
+                                    requests:
+                                      memory: 128Mi
+                                networks:
+                                  - name: default
+                                    pod: {}
+                                volumes:
+                                  - name: containerdisk
+                                    containerDisk:
+                                      # Using CirrOS for a tiny, fast demo download
+                                      image: quay.io/containerdisks/cirros:0.5.2
+                                  - name: cloudinitdisk
+                                    cloudInitNoCloud:
+                                      userData: |
+                                        #!/bin/bash
+                                        echo "Hello from ACM deployed VM" > /test_file

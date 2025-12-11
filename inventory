@@ -1,0 +1,8 @@
+[execution_nodes]
+# This is the 'Remote Node' that will talk to vCenter
+# Replace x.x.x.x with the IP of your bastion/jump host
+# If running directly from your laptop, you can switch this to 'localhost' and connection='local'
+bastion.example.com ansible_host=192.168.1.50 ansible_user=rhel-user
+
+[execution_nodes:vars]
+ansible_python_interpreter=/usr/bin/python3

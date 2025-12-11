@@ -1,0 +1,65 @@
+---
+- name: Deploy Virtual Machine to VMware vSphere
+  hosts: execution_nodes
+  gather_facts: no
+  vars_files:
+    - vars/main.yml
+
+  tasks:
+    - name: Ensure PyVmomi is present on the remote node
+      ansible.builtin.pip:
+        name: pyvmomi
+        state: present
+      # This task requires root/sudo on the remote node
+      become: yes
+
+    - name: Create VM Folder (Optional)
+      vmware.vmware.folder:
+        hostname: "{{ vcenter_hostname }}"
+        username: "{{ vcenter_username }}"
+        password: "{{ vcenter_password }}"
+        validate_certs: "{{ vcenter_validate_certs }}"
+        datacenter: "{{ datacenter_name }}"
+        folder_name: "{{ vm_folder }}"
+        folder_type: vm
+        state: present
+
+    - name: Clone VM from Template and Start
+      community.vmware.vmware_guest:
+        hostname: "{{ vcenter_hostname }}"
+        username: "{{ vcenter_username }}"
+        password: "{{ vcenter_password }}"
+        validate_certs: "{{ vcenter_validate_certs }}"
+        datacenter: "{{ datacenter_name }}"
+        cluster: "{{ cluster_name }}"
+        resource_pool: "{{ resource_pool }}"
+        folder: "/{{ datacenter_name }}/vm/{{ vm_folder }}"
+        name: "{{ vm_name }}"
+        template: "{{ vm_template }}"
+        state: poweredon
+        wait_for_ip_address: yes
+        hardware:
+          memory_mb: "{{ vm_ram_mb }}"
+          num_cpus: "{{ vm_cpu }}"
+          hotadd_cpu: true
+          hotadd_memory: true
+        networks:
+          - name: "{{ network_name }}"
+            start_connected: true
+            type: vmxnet3
+        disk:
+          - size_gb: "{{ vm_disk_gb }}"
+            type: thin
+            datastore: "{{ datastore_name }}"
+        customization:
+          hostname: "{{ vm_name }}"
+          # Requires Perl installed on the Linux template for customization to work
+          domain: "example.com"
+          dns_servers:
+            - "8.8.8.8"
+            - "1.1.1.1"
+      register: deploy_result
+
+    - name: Display IP Address of new VM
+      ansible.builtin.debug:
+        msg: "The new VM is ready. IP Address: {{ deploy_result.instance.ipv4 }}"
